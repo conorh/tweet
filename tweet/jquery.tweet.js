@@ -3,10 +3,10 @@
 (function($) {
   $.fn.tweet = function(o){
     var s = $.extend({
-      username: null,                           // [string or array] required unless using the 'query' option; one or more twitter screen names (use 'list' option for multiple names, where possible)
-      list: null,                               // [string]   optional name of list belonging to username
+      username: null,                           // [string or array] one or more twitter screen names (use 'list' option for multiple names, where possible)
+      list: null,                               // [string or array] one or more lists in the format username/listname
       favorites: false,                         // [boolean]  display the user's favorites instead of his tweets
-      query: null,                              // [string]   optional search query (see also: http://search.twitter.com/operators)
+      query: null,                              // [string or array] one or more search queries (see also: http://search.twitter.com/operators)
       avatar_size: null,                        // [integer]  height and width of avatar if displayed (48px max)
       count: 3,                                 // [integer]  how many tweets to display?
       fetch: null,                              // [integer]  how many tweets to fetch via the API (set this higher than 'count' if using the 'filter' option)
@@ -122,19 +122,50 @@
       return ('https:' == document.location.protocol) ? url.replace(/^http:/, 'https:') : url;
     }
 
-    function build_api_url() {
-      var proto = ('https:' == document.location.protocol ? 'https:' : 'http:');
-      var count = (s.fetch === null) ? s.count : s.fetch;
-      if (s.list) {
-        return proto+"//"+s.twitter_api_url+"/1/"+s.username[0]+"/lists/"+s.list+"/statuses.json?page="+s.page+"&per_page="+count+"&callback=?";
-      } else if (s.favorites) {
-        return proto+"//"+s.twitter_api_url+"/favorites/"+s.username[0]+".json?page="+s.page+"&count="+count+"&callback=?";
-      } else if (s.query === null && s.username.length == 1) {
-        return proto+'//'+s.twitter_api_url+'/1/statuses/user_timeline.json?screen_name='+s.username[0]+'&count='+count+(s.retweets ? '&include_rts=1' : '')+'&page='+s.page+'&callback=?';
-      } else {
-        var query = (s.query || 'from:'+s.username.join(' OR from:'));
-        return proto+'//'+s.twitter_search_url+'/search.json?&q='+encodeURIComponent(query)+'&rpp='+count+'&page='+s.page+'&callback=?';
+    // Look at the parameters and decide what Twitter API queries need to be generated
+    function collect_api_urls() {
+      var urls = [];
+
+      // If there is a single list without a username then generate a list query only
+      if(s.list.length == 1 && s.list[0].indexOf('/') == -1) {
+        return [build_list_url(s.username[0] + "/" + s.list[0])];
       }
+
+      // If there is more than one username then generate a search query for the usernames
+      if(s.username.length > 1) {
+        urls = urls.concat(build_search_url('from:'+s.username.join(' OR from:')));
+      } else if(s.username.length == 1) {
+        urls = urls.concat(build_user_url(s.username));
+      }
+
+      if(s.list) { urls = urls.concat($.map(s.list, build_list_url)); }
+      if(s.query) { urls = urls.concat($.map(s.query, build_search_url)); }
+
+      return urls;
+    }
+
+    function build_list_url(list_name) {
+      var count = (s.fetch === null) ? s.count : s.fetch;
+      var list = list_name.split("/") // Split the list name into a user and list name
+      var url = 'http://'+s.twitter_api_url+"/1/"+list[0]+"/lists/"+list[1]+"/statuses.json?page="+s.page+"&per_page="+count+"&callback=?";
+      return maybe_https(url);
+    }
+
+    function build_user_url(username) {
+      var count = (s.fetch === null) ? s.count : s.fetch;
+      var url = null;
+      if(s.favorites) {
+        url = 'http://'+s.twitter_api_url+"/favorites/"+username+".json?page="+s.page+"&count="+count+"&callback=?";
+      } else {
+        url = 'http://'+s.twitter_api_url+'/1/statuses/user_timeline.json?screen_name='+username+'&count='+count+(s.retweets ? '&include_rts=1' : '')+'&page='+s.page+'&callback=?';
+      }
+      return maybe_https(url);
+    }
+
+    function build_search_url(query_text) {
+      var count = (s.fetch === null) ? s.count : s.fetch;
+      var url = 'http://'+s.twitter_search_url+'/search.json?&q='+encodeURIComponent(query_text)+'&rpp='+count+'&page='+s.page+'&callback=?';
+      return maybe_https(url);
     }
 
     // Convert twitter API objects into data available for
@@ -181,18 +212,38 @@
       var outro = '<p class="tweet_outro">'+s.outro_text+'</p>';
       var loading = $('<p class="loading">'+s.loading_text+'</p>');
 
-      if(s.username && typeof(s.username) == "string"){
-        s.username = [s.username];
-      }
+      $.each(['username','list','query'], function (i, property) {
+        if(s[property] && typeof(s[property]) == 'string') {
+          s[property] = [s[property]];
+        }
+      });
 
       if (s.loading_text) $(widget).append(loading);
+
       $(widget).bind("tweet:load", function(){
-        $.getJSON(build_api_url(), function(data){
+        var jxhr = [];
+        var results = [];
+        var urls = collect_api_urls();
+
+        $.each(urls, function (i, url) {
+          jxhr.push(
+            $.getJSON(url, function (json) {
+              results.push(json);
+            })
+          );
+        });
+
+        $.when.apply($, jxhr).done(function() {
           if (s.loading_text) loading.remove();
           if (s.intro_text) list.before(intro);
           list.empty();
 
-          var tweets = $.map(data.results || data, extract_template_data);
+          var tweets = [];
+
+          $.each(results, function(i, data) { 
+            tweets = tweets.concat($.map(data.results || data, extract_template_data)); 
+          });
+
           tweets = $.grep(tweets, s.filter).sort(s.comparator).slice(0, s.count);
           list.append($.map(tweets, function(o) { return "<li>" + t(s.template, o) + "</li>"; }).join('')).
               children('li:first').addClass('tweet_first').end().
