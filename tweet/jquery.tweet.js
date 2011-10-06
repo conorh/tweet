@@ -127,15 +127,17 @@
       var urls = [];
 
       // If there is a single list without a username then generate a list query only
-      if(s.list.length == 1 && s.list[0].indexOf('/') == -1) {
+      if(s.list && s.list.length == 1 && s.list[0].indexOf('/') == -1) {
         return [build_list_url(s.username[0] + "/" + s.list[0])];
       }
 
       // If there is more than one username then generate a search query for the usernames
-      if(s.username.length > 1) {
-        urls = urls.concat(build_search_url('from:'+s.username.join(' OR from:')));
-      } else if(s.username.length == 1) {
-        urls = urls.concat(build_user_url(s.username));
+      if(s.username) {
+        if(s.username.length > 1) {
+          urls = urls.concat(build_search_url('from:'+s.username.join(' OR from:')));
+        } else if(s.username.length == 1) {
+          urls = urls.concat(build_user_url(s.username));
+        }
       }
 
       if(s.list) { urls = urls.concat($.map(s.list, build_list_url)); }
