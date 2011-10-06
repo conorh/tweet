@@ -179,6 +179,21 @@
   </pre>
   <div id='empty' class="query"></div>
 
+  <p>Retrieve tweets from multiple usernames, lists and searches.</p>
+  <pre class="example">
+    jQuery(function($){
+      $("#multiple").tweet({
+        avatar_size: 32,
+        count: 4,
+        username: ["seaofclouds", "twitter"],
+        list: ["twitter/d9","twitter/team"],
+        query: ["tweet.seaofclouds.com", "github"],
+        loading_text: "loading tweets..."
+      })
+    });
+  </pre>
+  <div id='multiple' class="query"></div>
+
   <h3>Features</h3>
   <ul>
     <li>small size and fast download time</li>

@@ -17,7 +17,7 @@ See [tweet.seaofclouds.com](http://tweet.seaofclouds.com/), or the bundled `inde
   * display tweets from a twitter search, or from your own feed
   * optional verb tense matching, for human readable tweets
   * optionally display your avatar
-  * optionally display tweets from multiple accounts!
+  * optionally display tweets from multiple accounts, multiple lists, multiple searches - all at the same time.
   * automatic linking of @replies to users’ twitter page
   * automatic linking of URLs
   * automatic linking of #hashtags, to a twitter search of all your tags
